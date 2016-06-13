@@ -62,7 +62,7 @@ module LocalServer
     # | 1  |   1    |
     # +----+--------+
     def greeting
-      ver = @data.unpack("C")
+      ver = @data.unpack("C").first
       clear_data
       if ver == 5
         send_data "\x05\x00"  # NO AUTHENTICATION REQUIRED

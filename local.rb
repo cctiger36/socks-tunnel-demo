@@ -1,12 +1,7 @@
 require "eventmachine"
 require "ipaddr"
+require_relative "config"
 require_relative "coder"
-
-LOCAL_SERVER_HOST = "127.0.0.1"
-LOCAL_SERVER_PORT = "8081"
-REMOTE_SERVER_HOST = "127.0.0.1"
-REMOTE_SERVER_PORT = "8082"
-DELIMITER = "DRECOMADVENTCALENDER"
 
 class LocalConnection < EventMachine::Connection
   attr_accessor :server
@@ -19,14 +14,14 @@ class LocalConnection < EventMachine::Connection
   def send_encoded_data(data)
     return if data.nil? || data.empty?
     send_data(@coder.encode(data))
-    send_data(DELIMITER)
+    send_data(Config[:delimiter])
   end
 
   def receive_data(data)
     return if data.nil? || data.empty?
     @buffer << data
     loop do
-      fore, rest = @buffer.split(DELIMITER, 2)
+      fore, rest = @buffer.split(Config[:delimiter], 2)
       break unless rest
       server.send_data(@coder.decode(fore))
       @buffer = rest
@@ -116,7 +111,7 @@ module LocalServer
       case cmd
       when 1
         send_data reply_data(:success)
-        @connection = EventMachine.connect(REMOTE_SERVER_HOST, REMOTE_SERVER_PORT, LocalConnection)
+        @connection = EventMachine.connect(Config[:remote_server_host], Config[:remote_server_port], LocalConnection)
         @connection.server = self
         @connection.send_encoded_data("#{host}:#{port}")
         @connection.send_encoded_data(@data[header_length, -1])
@@ -156,6 +151,6 @@ module LocalServer
 end
 
 EventMachine.run do
-  puts "Start socks5 at #{LOCAL_SERVER_HOST}:#{LOCAL_SERVER_PORT}"
-  EventMachine.start_server(LOCAL_SERVER_HOST, LOCAL_SERVER_PORT, LocalServer)
+  puts "Start socks5 at #{Config[:local_server_host]}:#{Config[:local_server_port]}"
+  EventMachine.start_server(Config[:local_server_host], Config[:local_server_port], LocalServer)
 end

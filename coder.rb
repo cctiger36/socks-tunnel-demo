@@ -1,22 +1,18 @@
 require "openssl"
-
-CIPHER = "AES-256-CBC"
-SALT = "V\x11\x97\xA6r\xEF[\xFE"
-PASSWORD = "mypassword"
+require_relative "config"
 
 class Coder
-
   def initialize
-    cipher = OpenSSL::Cipher.new(CIPHER)
-    key_iv = OpenSSL::PKCS5.pbkdf2_hmac_sha1(PASSWORD, SALT, 2000, cipher.key_len + cipher.iv_len)
+    cipher = OpenSSL::Cipher.new(Config[:cipher])
+    key_iv = OpenSSL::PKCS5.pbkdf2_hmac_sha1(Config[:password], Config[:salt], 2000, cipher.key_len + cipher.iv_len)
     @key = key_iv[0, cipher.key_len]
     @iv = key_iv[cipher.key_len, cipher.iv_len]
 
-    @encoder = OpenSSL::Cipher.new(CIPHER)
+    @encoder = OpenSSL::Cipher.new(Config[:cipher])
     @encoder.encrypt
     @encoder.key = @key
 
-    @decoder = OpenSSL::Cipher.new(CIPHER)
+    @decoder = OpenSSL::Cipher.new(Config[:cipher])
     @decoder.decrypt
     @decoder.key = @key
   end

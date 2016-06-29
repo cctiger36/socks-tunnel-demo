@@ -1,8 +1,6 @@
 require "eventmachine"
+require_relative "config"
 require_relative "coder"
-
-REMOTE_SERVER_PORT = "8082"
-DELIMITER = "DRECOMADVENTCALENDER"
 
 class RemoteConnection < EventMachine::Connection
   attr_accessor :server
@@ -25,21 +23,21 @@ class RemoteServer < EventMachine::Connection
   def send_encoded_data(data)
     return if data.nil? || data.empty?
     send_data(@coder.encode(data))
-    send_data(DELIMITER)
+    send_data(Config[:delimiter])
   end
 
   def receive_data(data)
     if @connection
       @buffer << data
       loop do
-        fore, rest = @buffer.split(DELIMITER, 2)
+        fore, rest = @buffer.split(Config[:delimiter], 2)
         break unless rest
         @connection.send_data(@coder.decode(fore))
         @buffer = rest
       end
     else
       @buffer << data
-      addr, rest = @buffer.split(DELIMITER, 2)
+      addr, rest = @buffer.split(Config[:delimiter], 2)
       if rest
         addr = @coder.decode(addr)
         host, port = addr.split(":")
@@ -48,7 +46,7 @@ class RemoteServer < EventMachine::Connection
         @connection = EventMachine.connect(host, port, RemoteConnection)
         @connection.server = self
         loop do
-          fore, rest = @buffer.split(DELIMITER, 2)
+          fore, rest = @buffer.split(Config[:delimiter], 2)
           break unless rest
           @connection.send_data(@coder.decode(fore))
           @buffer = rest
@@ -66,6 +64,6 @@ class RemoteServer < EventMachine::Connection
 end
 
 EventMachine.run do
-  puts "Starting server at 0.0.0.0:#{REMOTE_SERVER_PORT}"
-  EventMachine.start_server('0.0.0.0', REMOTE_SERVER_PORT, RemoteServer)
+  puts "Start server at 0.0.0.0:#{Config[:remote_server_port]}"
+  EventMachine.start_server('0.0.0.0', Config[:remote_server_port], RemoteServer)
 end

@@ -1,22 +1,36 @@
 require "eventmachine"
+require "ipaddr"
+require_relative "coder"
 
 LOCAL_SERVER_HOST = "127.0.0.1"
 LOCAL_SERVER_PORT = "8081"
 REMOTE_SERVER_HOST = "127.0.0.1"
 REMOTE_SERVER_PORT = "8082"
+DELIMITER = "DRECOMADVENTCALENDER"
 
 class LocalConnection < EventMachine::Connection
   attr_accessor :server
 
+  def post_init
+    @coder = Coder.new
+    @buffer = ""
+  end
+
   def send_encoded_data(data)
-    return if data.nil? || data.length == 0
-    # TODO: encode data
-    send_data(data)
+    return if data.nil? || data.empty?
+    send_data(@coder.encode(data))
+    send_data(DELIMITER)
   end
 
   def receive_data(data)
-    # TODO: decode data
-    server.send_data(data)
+    return if data.nil? || data.empty?
+    @buffer << data
+    loop do
+      fore, rest = @buffer.split(DELIMITER, 2)
+      break unless rest
+      server.send_data(@coder.decode(fore))
+      @buffer = rest
+    end
   end
 
   def unbind
@@ -104,7 +118,7 @@ module LocalServer
         send_data reply_data(:success)
         @connection = EventMachine.connect(REMOTE_SERVER_HOST, REMOTE_SERVER_PORT, LocalConnection)
         @connection.server = self
-        @connection.send_encoded_data("#{host}:#{port}\n")
+        @connection.send_encoded_data("#{host}:#{port}")
         @connection.send_encoded_data(@data[header_length, -1])
         clear_data
         Fiber.yield

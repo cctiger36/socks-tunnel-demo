@@ -1,6 +1,8 @@
 require "eventmachine"
+require_relative "coder"
 
 REMOTE_SERVER_PORT = "8082"
+DELIMITER = "DRECOMADVENTCALENDER"
 
 class RemoteConnection < EventMachine::Connection
   attr_accessor :server
@@ -16,30 +18,42 @@ end
 
 class RemoteServer < EventMachine::Connection
   def post_init
+    @coder = Coder.new
     @buffer = ""
   end
 
   def send_encoded_data(data)
-    return if data.nil? || data.length == 0
-    # TODO: encode data
-    send_data(data)
+    return if data.nil? || data.empty?
+    send_data(@coder.encode(data))
+    send_data(DELIMITER)
   end
 
   def receive_data(data)
-    # TODO: decode data
-    if @buffer
+    if @connection
       @buffer << data
-      addr, rest = @buffer.split("\n", 2)
-      if rest && rest.length > 0
-        host, port = addr.split(":")
-        port = port.nil? ? 80 : port.to_i
-        @connection = EventMachine.connect(host, port, RemoteConnection)
-        @connection.server = self
-        @connection.send_data(rest) if rest.length > 0
-        @buffer = nil
+      loop do
+        fore, rest = @buffer.split(DELIMITER, 2)
+        break unless rest
+        @connection.send_data(@coder.decode(fore))
+        @buffer = rest
       end
     else
-      @connection.send_data(data) if data && data.length > 0
+      @buffer << data
+      addr, rest = @buffer.split(DELIMITER, 2)
+      if rest
+        addr = @coder.decode(addr)
+        host, port = addr.split(":")
+        port = (port.nil? || port.empty?) ? 80 : port.to_i
+        @buffer = rest
+        @connection = EventMachine.connect(host, port, RemoteConnection)
+        @connection.server = self
+        loop do
+          fore, rest = @buffer.split(DELIMITER, 2)
+          break unless rest
+          @connection.send_data(@coder.decode(fore))
+          @buffer = rest
+        end
+      end
     end
   rescue
     @connection.close_connection if @connection

@@ -1,6 +1,7 @@
 require "eventmachine"
-require_relative "config"
+require_relative "buffer"
 require_relative "coder"
+require_relative "config"
 
 class RemoteConnection < EventMachine::Connection
   attr_accessor :server
@@ -17,7 +18,7 @@ end
 class RemoteServer < EventMachine::Connection
   def post_init
     @coder = Coder.new
-    @buffer = ""
+    @buffer = Buffer.new
   end
 
   def send_encoded_data(data)
@@ -29,27 +30,20 @@ class RemoteServer < EventMachine::Connection
   def receive_data(data)
     if @connection
       @buffer << data
-      loop do
-        fore, rest = @buffer.split(Config[:delimiter], 2)
-        break unless rest
-        @connection.send_data(@coder.decode(fore))
-        @buffer = rest
+      @buffer.each do |segment|
+        @connection.send_data(@coder.decode(segment))
       end
     else
       @buffer << data
-      addr, rest = @buffer.split(Config[:delimiter], 2)
-      if rest
+      addr = @buffer.shift
+      if addr
         addr = @coder.decode(addr)
         host, port = addr.split(":")
         port = (port.nil? || port.empty?) ? 80 : port.to_i
-        @buffer = rest
         @connection = EventMachine.connect(host, port, RemoteConnection)
         @connection.server = self
-        loop do
-          fore, rest = @buffer.split(Config[:delimiter], 2)
-          break unless rest
-          @connection.send_data(@coder.decode(fore))
-          @buffer = rest
+        @buffer.each do |segment|
+          @connection.send_data(@coder.decode(segment))
         end
       end
     end

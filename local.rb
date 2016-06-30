@@ -1,14 +1,15 @@
 require "eventmachine"
 require "ipaddr"
-require_relative "config"
+require_relative "buffer"
 require_relative "coder"
+require_relative "config"
 
 class LocalConnection < EventMachine::Connection
   attr_accessor :server
 
   def post_init
     @coder = Coder.new
-    @buffer = ""
+    @buffer = Buffer.new
   end
 
   def send_encoded_data(data)
@@ -20,11 +21,8 @@ class LocalConnection < EventMachine::Connection
   def receive_data(data)
     return if data.nil? || data.empty?
     @buffer << data
-    loop do
-      fore, rest = @buffer.split(Config[:delimiter], 2)
-      break unless rest
-      server.send_data(@coder.decode(fore))
-      @buffer = rest
+    @buffer.each do |segment|
+      server.send_data(@coder.decode(segment))
     end
   end
 

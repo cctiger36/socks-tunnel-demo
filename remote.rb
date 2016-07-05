@@ -1,5 +1,4 @@
 require "eventmachine"
-require "socket"
 require_relative "buffer"
 require_relative "coder"
 require_relative "config"
@@ -35,7 +34,6 @@ class RemoteServer < EventMachine::Connection
         @connection.send_data(@coder.decode(segment))
       end
     else
-      validate_client_ip
       @buffer << data
       addr = @buffer.shift
       if addr
@@ -56,11 +54,6 @@ class RemoteServer < EventMachine::Connection
 
   def unbind
     @connection.close_connection if @connection
-  end
-
-  def validate_client_ip
-    port, ip = Socket.unpack_sockaddr_in(get_peername)
-    raise "Invalid client" unless ip == Config[:local_server_host]
   end
 end
 
